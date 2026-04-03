@@ -58,34 +58,38 @@ async def test_ollama():
         record("Ollama API", FAIL, str(e))
 
 
-# ── 2. Weaviate ────────────────────────────────────────────────────────────
+# ── 2. In-memory KB ───────────────────────────────────────────────────────
 async def test_weaviate():
-    console.rule("[cyan]2. Weaviate[/cyan]")
+    console.rule("[cyan]2. In-memory KB[/cyan]")
     try:
-        from rag.pipeline import get_weaviate_client, init_collections
-        client = get_weaviate_client()
-        init_collections(client)
-        collections = [c.name for c in client.collections.list_all().values()]
-        record("Weaviate connection", PASS, f"collections: {collections}")
-        client.close()
+        from rag.pipeline import init_collections, _store
+        init_collections()
+        domains = list(_store.keys())
+        assert len(domains) == 3
+        record("In-memory KB init", PASS, f"domains: {domains}")
     except Exception as e:
-        record("Weaviate connection", FAIL, str(e))
+        record("In-memory KB", FAIL, str(e))
 
 
-# ── 3. Redis ───────────────────────────────────────────────────────────────
+# ── 3. In-memory session store ────────────────────────────────────────────
 async def test_redis():
-    console.rule("[cyan]3. Redis[/cyan]")
+    console.rule("[cyan]3. In-memory Session Store[/cyan]")
     try:
-        import redis.asyncio as aioredis
-        from config.settings import settings
-        r = aioredis.from_url(settings.redis_url)
-        await r.set("test_key", "test_value", ex=10)
-        val = await r.get("test_key")
-        assert val == "test_value"
-        await r.aclose()
-        record("Redis ping + read/write", PASS)
+        from memory.store import MemoryStore
+        store = MemoryStore()
+        await store.add_message("test_session", "user", "hello")
+        history = await store.get_history("test_session")
+        assert len(history) == 1
+        assert history[0]["content"] == "hello"
+
+        await store.cache_result("test query", {"answer": 42})
+        cached = await store.get_cached_result("test query")
+        assert cached == {"answer": 42}
+
+        await store.close()
+        record("MemoryStore read/write + cache", PASS)
     except Exception as e:
-        record("Redis", FAIL, str(e))
+        record("MemoryStore", FAIL, str(e))
 
 
 # ── 4. Embedding ───────────────────────────────────────────────────────────

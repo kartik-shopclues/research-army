@@ -36,16 +36,13 @@ def main():
 
         if cmd == "ingest":
             # python main.py ingest space ./data/space_docs/
-            import asyncio
-            from rag.pipeline import ingest_directory, get_weaviate_client, init_collections
+            from rag.pipeline import ingest_directory, init_collections
 
             domain    = sys.argv[2] if len(sys.argv) > 2 else "space"
             directory = sys.argv[3] if len(sys.argv) > 3 else "./data"
 
             async def _run():
-                client = get_weaviate_client()
-                init_collections(client)
-                client.close()
+                init_collections()
                 n = await ingest_directory(domain, directory)
                 console.print(f"[green]Ingested {n} chunks into {domain} KB[/green]")
 
