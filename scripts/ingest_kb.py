@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from rag.pipeline import (
     ingest_document, ingest_file, ingest_directory,
-    init_collections, get_weaviate_client,
+    init_collections, _store,
 )
 
 console = Console()
@@ -180,29 +180,16 @@ async def ingest_all_domains(data_base_dir: str = "./data"):
 
 
 async def show_kb_stats():
-    """Print stats for all domain KBs."""
+    """Print stats for all domain KBs (in-memory)."""
     from config.settings import DOMAIN_COLLECTIONS
-    import weaviate
-
-    client = get_weaviate_client()
-    try:
-        for domain, col_name in DOMAIN_COLLECTIONS.items():
-            try:
-                col = client.collections.get(col_name)
-                agg = col.aggregate.over_all(total_count=True)
-                count = agg.total_count or 0
-                console.print(f"  [bold]{domain:10}[/bold] {count:6} chunks  ({col_name})")
-            except Exception:
-                console.print(f"  [dim]{domain:10} not found[/dim]")
-    finally:
-        client.close()
+    for domain in DOMAIN_COLLECTIONS:
+        count = len(_store.get(domain, []))
+        console.print(f"  [bold]{domain:10}[/bold] {count:6} chunks  (in-memory)")
 
 
 async def main_async(args):
-    # Ensure Weaviate collections exist
-    client = get_weaviate_client()
-    init_collections(client)
-    client.close()
+    # Initialise in-memory collections
+    init_collections()
 
     if args.stats:
         console.print("\n[bold]KB Statistics:[/bold]")

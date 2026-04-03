@@ -36,7 +36,7 @@ class SpecialistAgent:
         peer_context: combined responses from other agents (debate mode)
         debate_role:  assigned role + instruction from commander
         """
-        chunks, rag_context = await _retrieve_context_wrapper(self.domain, sub_task or query)
+        chunks, rag_context = await self._retrieve_context(sub_task or query)
 
         # Build prompt
         task_text = sub_task if sub_task else query
@@ -85,7 +85,7 @@ class SpecialistAgent:
         sub_task: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Streaming version for Mode A — direct single domain."""
-        chunks, rag_context = await _retrieve_context_wrapper(self.domain, sub_task or query)
+        chunks, rag_context = await self._retrieve_context(sub_task or query)
 
         task_text = sub_task if sub_task else query
         prompt = (
@@ -97,8 +97,3 @@ class SpecialistAgent:
         async for token in self.llm.stream(prompt):
             yield token
 
-
-# helper to avoid tuple unpack issue with type checker
-async def _retrieve_context_wrapper(domain: str, query: str):
-    chunks = await retrieve(domain, query)
-    return chunks, format_context(chunks)
