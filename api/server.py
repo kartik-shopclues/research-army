@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from agents.orchestrator import ResearchOrchestrator
-from rag.pipeline import init_collections, get_weaviate_client, ingest_document, ingest_file
+from rag.pipeline import init_collections, ingest_document, ingest_file
 from sync.bus import SyncBus, run_sync_scheduler
 from memory.store import MemoryStore
 from config.settings import settings

@@ -13,11 +13,9 @@ langchain-community>=0.2.0
 langchain-core>=0.2.0
 langgraph>=0.1.0
 
-# Vector store
-weaviate-client>=4.6.0
+# Vector store (in-memory, no external service needed)
 
-# Cache / memory
-redis[hiredis]>=5.0.0
+# Cache / memory (in-memory, no external service needed)
 
 # RAG / document processing
 pypdf>=4.2.0

@@ -1,37 +1,41 @@
 """
 memory/store.py — Shared memory: session history + episodic cache
+Pure in-memory implementation — no Redis required.
 """
+import hashlib
 import json
+from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import redis.asyncio as aioredis
-
-from config.settings import settings
-
-SESSION_TTL = 86400 * 7  # 7 days
+SESSION_TTL = 86400 * 7  # 7 days (kept for API compat)
+_CACHE_MAX  = 512        # max cached results
 
 
 class MemoryStore:
     def __init__(self):
-        self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        # session_id → deque of message dicts
+        self._sessions: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
+        # session_id → metadata dict
+        self._session_meta: Dict[str, Dict] = {}
+        # md5(query) → result dict
+        self._cache: Dict[str, Dict] = {}
+        # insertion-order list for LRU eviction
+        self._cache_keys: deque = deque(maxlen=_CACHE_MAX)
 
     # ── Session history ────────────────────────────────────────────────────
 
     async def add_message(self, session_id: str, role: str, content: str):
-        key = f"session:{session_id}:messages"
-        msg = json.dumps({
+        msg = {
             "role":      role,
             "content":   content,
             "timestamp": datetime.utcnow().isoformat(),
-        })
-        await self.redis.rpush(key, msg)
-        await self.redis.expire(key, SESSION_TTL)
+        }
+        self._sessions[session_id].append(msg)
 
     async def get_history(self, session_id: str, last_n: int = 20) -> List[Dict]:
-        key = f"session:{session_id}:messages"
-        items = await self.redis.lrange(key, -last_n, -1)
-        return [json.loads(i) for i in items]
+        msgs = list(self._sessions.get(session_id, []))
+        return msgs[-last_n:]
 
     async def get_llm_history(self, session_id: str, last_n: int = 10) -> List[Dict]:
         """Return history in Ollama message format."""
@@ -41,31 +45,26 @@ class MemoryStore:
     # ── Research results cache ─────────────────────────────────────────────
 
     async def cache_result(self, query: str, result: Dict, ttl: int = 3600):
-        """Cache a research result for 1 hour to avoid redundant LLM calls."""
-        import hashlib
-        key = "cache:" + hashlib.md5(query.encode()).hexdigest()
-        await self.redis.setex(key, ttl, json.dumps(result))
+        """Cache a research result (LRU, max 512 entries)."""
+        key = hashlib.md5(query.encode()).hexdigest()
+        if key not in self._cache:
+            self._cache_keys.append(key)
+        self._cache[key] = result
 
     async def get_cached_result(self, query: str) -> Optional[Dict]:
-        import hashlib
-        key = "cache:" + hashlib.md5(query.encode()).hexdigest()
-        val = await self.redis.get(key)
-        return json.loads(val) if val else None
+        key = hashlib.md5(query.encode()).hexdigest()
+        return self._cache.get(key)
 
     # ── Session metadata ───────────────────────────────────────────────────
 
     async def set_session_meta(self, session_id: str, meta: Dict):
-        key = f"session:{session_id}:meta"
-        await self.redis.setex(key, SESSION_TTL, json.dumps(meta))
+        self._session_meta[session_id] = meta
 
     async def get_session_meta(self, session_id: str) -> Dict:
-        key = f"session:{session_id}:meta"
-        val = await self.redis.get(key)
-        return json.loads(val) if val else {}
+        return self._session_meta.get(session_id, {})
 
     async def list_sessions(self, limit: int = 20) -> List[str]:
-        keys = await self.redis.keys("session:*:meta")
-        return [k.split(":")[1] for k in keys[:limit]]
+        return list(self._sessions.keys())[:limit]
 
     async def close(self):
-        await self.redis.aclose()
+        pass  # nothing to close
