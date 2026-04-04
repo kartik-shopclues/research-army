@@ -1055,7 +1055,10 @@ function switchTab(tab, event) {
     if(tab === 'research') {
         document.getElementById('main-view').style.display = 'grid';
         document.getElementById('finetune-view').style.display = 'none';
-        if(ft_ws) ft_ws.close();
+        if(ft_ws) {
+            ft_ws.onclose = null;
+            ft_ws.close();
+        }
     } else {
         document.getElementById('main-view').style.display = 'none';
         document.getElementById('finetune-view').style.display = 'block';
@@ -1113,7 +1116,10 @@ async function startFinetune(action) {
 }
 
 function connectFinetuneLogs() {
-    if(ft_ws) ft_ws.close();
+    if(ft_ws) {
+        ft_ws.onclose = null;
+        ft_ws.close();
+    }
     ft_ws = new WebSocket(`${WS_API}/finetune/ws/logs`);
     let logBox = document.getElementById('ft-logs');
     
