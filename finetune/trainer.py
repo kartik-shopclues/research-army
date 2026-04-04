@@ -68,8 +68,21 @@ def train_adapter(domain: str, dataset_path: str):
         convos = examples["conversations"]
         texts = [tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False) for convo in convos]
         return { "text" : texts, }
+    import json
+    from datasets import Dataset
+    
+    try:
+        with open(dataset_path, "r", encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+    except Exception as e:
+        console.print(f"[red]Error reading dataset file: {e}[/red]")
+        sys.exit(1)
         
-    dataset = load_dataset("json", data_files=dataset_path, split="train")
+    if not records:
+        console.print(f"[red]Error: Dataset file {dataset_path} is completely empty or contains no records.[/red]")
+        sys.exit(1)
+        
+    dataset = Dataset.from_list(records)
     dataset = dataset.map(formatting_prompts_func, batched = True,)
 
     trainer = SFTTrainer(
