@@ -70,7 +70,6 @@ def train_adapter(domain: str, dataset_path: str):
         return { "text" : texts, }
         
     dataset = load_dataset("json", data_files=dataset_path, split="train")
-    dataset = standardize_sharegpt(dataset)
     dataset = dataset.map(formatting_prompts_func, batched = True,)
 
     trainer = SFTTrainer(

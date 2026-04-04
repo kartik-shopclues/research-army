@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, BackgroundTasks, WebSocket, WebSocketDisconnect, HTTPException, Form, UploadFile, File
 from pydantic import BaseModel
 from collections import deque
 import api.server # Import server globals
@@ -45,9 +45,7 @@ async def run_subprocess(cmd: list, job_name: str):
     await broadcast_log(f"--- {job_name} Finished with exit code {process.returncode} ---\n")
     active_job = None
 
-class FinetuneRequest(BaseModel):
-    domain: str
-
+# FinetuneRequest is removed as we use Form data to support file uploads
 @router.get("/stats")
 async def get_stats():
     """Returns number of training examples available per domain."""
@@ -75,26 +73,38 @@ async def get_stats():
     }
 
 @router.post("/start")
-async def start_training(req: FinetuneRequest, background_tasks: BackgroundTasks):
+async def start_training(
+    background_tasks: BackgroundTasks,
+    domain: str = Form(...),
+    dataset: Optional[UploadFile] = File(None)
+):
     global active_job
     if active_job:
         raise HTTPException(400, "A job is already running")
         
-    domain = req.domain
     if domain not in ["space", "defence", "quantum"]:
         raise HTTPException(400, "Invalid domain")
 
-    # 1. Extract data
-    if not api.server.memory:
-        raise HTTPException(500, "MemoryStore not initialized")
+    # 1. Extract or save data
+    if dataset:
+        dataset_path = f"data/finetune_{domain}_custom.jsonl"
+        os.makedirs("data", exist_ok=True)
+        content = await dataset.read()
+        with open(dataset_path, "wb") as f:
+            f.write(content)
+        count = "Custom File"
+        await broadcast_log(f"Using uploaded custom dataset: {dataset.filename}\n")
+    else:
+        if not api.server.memory:
+            raise HTTPException(500, "MemoryStore not initialized")
+            
+        dataset_path = f"data/finetune_{domain}.jsonl"
+        count = build_dataset_for_domain(api.server.memory._cache, domain, dataset_path)
         
-    dataset_path = f"data/finetune_{domain}.jsonl"
-    count = build_dataset_for_domain(api.server.memory._cache, domain, dataset_path)
-    
-    if count == 0:
-        raise HTTPException(400, "No data available to train this domain.")
+        if count == 0:
+            raise HTTPException(400, "No data available to train this domain.")
 
-    await broadcast_log(f"Extracted {count} examples to {dataset_path}\n")
+        await broadcast_log(f"Extracted {count} examples to {dataset_path}\n")
 
     # 2. Run trainer in background
     cmd = ["python", "-m", "finetune.trainer", "train", "--domain", domain, "--dataset", dataset_path]
@@ -103,12 +113,14 @@ async def start_training(req: FinetuneRequest, background_tasks: BackgroundTasks
     return {"status": "started", "domain": domain, "examples": count}
 
 @router.post("/merge")
-async def start_merging(req: FinetuneRequest, background_tasks: BackgroundTasks):
+async def start_merging(
+    background_tasks: BackgroundTasks,
+    domain: str = Form(...)
+):
     global active_job
     if active_job:
         raise HTTPException(400, "A job is already running")
         
-    domain = req.domain
     if domain not in ["space", "defence", "quantum"]:
         raise HTTPException(400, "Invalid domain")
         
