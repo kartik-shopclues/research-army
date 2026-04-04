@@ -69,7 +69,8 @@ class SpecialistAgent:
             f"(round {round_num}, {len(chunks)} chunks retrieved)..."
         )
 
-        response = await self.llm.generate(prompt, temperature=0.7, max_tokens=1500)
+        response = await self.llm.generate(prompt, temperature=0.7)
+        # max_tokens comes from OllamaLLM.max_tokens (set via make_specialist factory)
 
         return {
             "domain":    self.domain,

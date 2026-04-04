@@ -31,10 +31,11 @@ class ResearchOrchestrator:
 
     async def research(
         self,
-        query: str,
-        session_id: str = None,
-        force_mode: Optional[str] = None,
-        progress_callback=None,
+        query:         str,
+        session_id:    str  = None,
+        force_mode:    Optional[str]  = None,
+        skip_critique: Optional[bool] = None,   # None = use settings default
+        progress_callback = None,
     ) -> Dict:
         """
         Main entry point. Run the full pipeline for a query.
@@ -76,12 +77,13 @@ class ResearchOrchestrator:
 
         elif mode == QueryMode.MODE_B_PLUS:
             result = await self.debate_engine.run(
-                query=query,
-                domains=domains,
-                sub_tasks=sub_tasks,
-                debate_topic=plan.get("debate_topic", query),
-                max_rounds=settings.max_debate_rounds,
-                progress_callback=progress_callback,
+                query         = query,
+                domains       = domains,
+                sub_tasks     = sub_tasks,
+                debate_topic  = plan.get("debate_topic", query),
+                max_rounds    = settings.max_debate_rounds,
+                skip_critique = skip_critique,
+                progress_callback = progress_callback,
             )
         else:
             result = await self.broadcast_engine.run(

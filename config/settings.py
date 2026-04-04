@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # ── Model assignments ──────────────────────────────
     # Commander: strongest reasoning, runs first and last
-    commander_model: str = "qwen3:30b"
+    commander_model: str = "qwen3:8b"   # was qwen3:30b — 8b is plenty for routing JSON; saves ~50s VRAM swap
 
     # Specialist LLMs (swapped in/out by Ollama)
     space_model: str = "mistral:7b"
@@ -42,13 +42,33 @@ class Settings(BaseSettings):
     min_delta_docs_for_event_sync: int = 10
 
     # ── Debate engine ──────────────────────────────────
-    max_debate_rounds: int = 3
+    max_debate_rounds: int = 2          # was 3 — 2 rounds still converges, saves one full LLM call round
     convergence_threshold: float = 0.75  # moderator score to stop debate
 
     # ── RAG retrieval ──────────────────────────────────
-    rag_top_k: int = 5
-    rag_chunk_size: int = 512
-    rag_chunk_overlap: int = 64
+    rag_top_k:       int = 3    # was 5 — fewer input tokens = faster prefill
+    rag_chunk_size:  int = 400  # was 512 — shorter chunks, less VRAM pressure
+    rag_chunk_overlap: int = 50
+
+    # ── Inference performance ──────────────────────────────────────
+    # GPU/VRAM tuning
+    ollama_keep_alive: int = -1     # keep model in VRAM forever (never unload)
+    ollama_num_ctx:    int = 4096   # cap context window — faster KV-cache + attention
+
+    # Per-role token budgets (right-sized per job, not a blanket 2048)
+    max_tokens_commander:  int = 256   # only outputs routing JSON
+    max_tokens_specialist: int = 800   # focused domain response
+    max_tokens_synthesis:  int = 1500  # cross-domain narrative
+    max_tokens_critique:   int = 600   # fact-check bullet points
+
+    # Context length limits to avoid bloated prompts
+    max_peer_context_chars: int = 2000  # truncate peer context passed to specialists
+
+    # Critique: on by default, overridable per API request
+    skip_critique: bool = False
+
+    # Embedding LRU cache entries
+    embed_cache_size: int = 4096
 
     class Config:
         env_file = ".env"
