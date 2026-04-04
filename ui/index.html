@@ -642,7 +642,15 @@
 
 <script>
 const API = '';  // same-origin
-let sessionId = crypto.randomUUID();
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+let sessionId = generateUUID();
 let selectedMode = 'auto';
 let ws = null;
 let queryCount = 0;

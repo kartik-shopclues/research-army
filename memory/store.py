@@ -8,7 +8,7 @@ from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, List, Optional
 
-SESSION_TTL = 86400 * 7  # 7 days (not enforced in-memory, kept for API compat)
+SESSION_TTL = 86400 * 7  # 7 days (kept for API compat)
 _CACHE_MAX  = 512        # max cached results
 
 

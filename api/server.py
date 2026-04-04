@@ -73,9 +73,10 @@ app.add_middleware(
 # ── Request / Response models ──────────────────────────────────────────────
 
 class ResearchRequest(BaseModel):
-    query:      str
-    session_id: Optional[str] = None
-    force_mode: Optional[str] = None  # mode_a | mode_b | mode_b_plus
+    query:         str
+    session_id:    Optional[str]  = None
+    force_mode:    Optional[str]  = None   # mode_a | mode_b | mode_b_plus
+    skip_critique: Optional[bool] = None   # None = use settings default
 
 
 class IngestRequest(BaseModel):
@@ -103,9 +104,10 @@ async def research(req: ResearchRequest):
 
     try:
         result = await orchestrator.research(
-            query=req.query,
-            session_id=req.session_id,
-            force_mode=req.force_mode,
+            query         = req.query,
+            session_id    = req.session_id,
+            force_mode    = req.force_mode,
+            skip_critique = req.skip_critique,
         )
         return result
     except Exception as e:
@@ -183,9 +185,10 @@ async def ws_research(websocket: WebSocket):
         while True:
             raw = await websocket.receive_text()
             msg = json.loads(raw)
-            query      = msg.get("query", "").strip()
-            session_id = msg.get("session_id") or str(uuid.uuid4())
-            mode       = msg.get("mode")
+            query         = msg.get("query", "").strip()
+            session_id    = msg.get("session_id") or str(uuid.uuid4())
+            mode          = msg.get("mode")
+            skip_critique = msg.get("skip_critique")  # optional per-message override
 
             if not query:
                 await websocket.send_json({"type": "error", "data": "empty query"})
@@ -205,10 +208,11 @@ async def ws_research(websocket: WebSocket):
                     # Non-streaming for Mode B / B+
                     await websocket.send_json({"type": "progress", "data": "Starting research pipeline..."})
                     result = await orchestrator.research(
-                        query=query,
-                        session_id=session_id,
-                        force_mode=mode,
-                        progress_callback=send_progress,
+                        query         = query,
+                        session_id    = session_id,
+                        force_mode    = mode,
+                        skip_critique = skip_critique,
+                        progress_callback = send_progress,
                     )
                     await websocket.send_json({"type": "result", "data": result})
                     await websocket.send_json({"type": "done", "data": ""})

@@ -5,6 +5,7 @@ Uses numpy cosine similarity — no Weaviate / Docker required.
 import asyncio
 import hashlib
 import os
+from collections import deque
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -25,6 +26,16 @@ console = Console()
 _store: Dict[str, List[Dict]] = {d: [] for d in DOMAIN_COLLECTIONS}
 
 
+# ── Embedding LRU cache ──────────────────────────────────────────────────────────────
+# Cache: SHA-256 of text → embedding vector. Eliminates repeat Ollama HTTP calls.
+_embed_cache: Dict[str, List[float]] = {}
+_embed_cache_order: deque = deque()  # FIFO eviction order
+
+
+def _embed_cache_key(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:32]
+
+
 # ── Weaviate stubs (kept so imports don't break) ───────────────────────────
 
 def get_weaviate_client():
@@ -41,23 +52,39 @@ def init_collections(client=None):
 
 # ── Embedding via Ollama ───────────────────────────────────────────────────
 
+async def _embed_one(client: httpx.AsyncClient, text: str) -> List[float]:
+    """Embed a single text (no cache) using a shared httpx client."""
+    resp = await client.post(
+        f"{settings.ollama_base_url}/api/embeddings",
+        json={"model": settings.embed_model, "prompt": text},
+    )
+    resp.raise_for_status()
+    return resp.json()["embedding"]
+
+
 async def embed_texts(texts: List[str]) -> List[List[float]]:
-    """Get embeddings from Ollama nomic-embed-text."""
+    """Embed a batch of texts in parallel (shared client, asyncio.gather)."""
     async with httpx.AsyncClient(timeout=120) as client:
-        vectors = []
-        for text in texts:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/embeddings",
-                json={"model": settings.embed_model, "prompt": text},
-            )
-            resp.raise_for_status()
-            vectors.append(resp.json()["embedding"])
-        return vectors
+        return list(await asyncio.gather(*[_embed_one(client, t) for t in texts]))
 
 
 async def embed_single(text: str) -> List[float]:
-    vectors = await embed_texts([text])
-    return vectors[0]
+    """Embed one text with LRU cache — avoids re-embedding recurring queries."""
+    key = _embed_cache_key(text)
+    if key in _embed_cache:
+        return _embed_cache[key]   # cache hit — no HTTP call
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        vec = await _embed_one(client, text)
+
+    # Evict oldest entry when at capacity
+    if len(_embed_cache) >= settings.embed_cache_size:
+        oldest = _embed_cache_order.popleft()
+        _embed_cache.pop(oldest, None)
+
+    _embed_cache[key] = vec
+    _embed_cache_order.append(key)
+    return vec
 
 
 # ── Text chunking ──────────────────────────────────────────────────────────
