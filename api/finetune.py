@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 from typing import Dict, Optional
 
 from fastapi import APIRouter, BackgroundTasks, WebSocket, WebSocketDisconnect, HTTPException, Form, UploadFile, File
@@ -107,7 +108,7 @@ async def start_training(
         await broadcast_log(f"Extracted {count} examples to {dataset_path}\n")
 
     # 2. Run trainer in background
-    cmd = ["python", "-m", "finetune.trainer", "train", "--domain", domain, "--dataset", dataset_path]
+    cmd = [sys.executable, "-m", "finetune.trainer", "train", "--domain", domain, "--dataset", dataset_path]
     background_tasks.add_task(run_subprocess, cmd, f"Fine-Tuning {domain}")
     
     return {"status": "started", "domain": domain, "examples": count}
@@ -127,7 +128,7 @@ async def start_merging(
     if not os.path.exists(f"./adapters/{domain}_lora"):
         raise HTTPException(400, f"No LoRA adapter found for {domain}")
 
-    cmd = ["python", "-m", "finetune.trainer", "merge", "--domain", domain]
+    cmd = [sys.executable, "-m", "finetune.trainer", "merge", "--domain", domain]
     background_tasks.add_task(run_subprocess, cmd, f"Merging {domain}")
     
     return {"status": "started", "domain": domain}
