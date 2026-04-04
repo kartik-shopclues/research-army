@@ -606,9 +606,9 @@
         <option value="defence">Defence</option>
         <option value="quantum">Quantum</option>
       </select>
-      <textarea class="ingest-area" id="ingest-content" placeholder="Paste document content here..."></textarea>
-      <input type="text" id="ingest-source" placeholder="Source name" style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;">
-      <button class="ingest-btn" onclick="ingestDoc()">+ Ingest</button>
+      <input type="file" id="ingest-file" accept=".json,.txt,.md,.pdf" style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;">
+      <input type="text" id="ingest-source" placeholder="Source name (optional)" style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;">
+      <button class="ingest-btn" onclick="ingestDoc()">+ Upload File</button>
     </div>
 
   </div>
@@ -1012,21 +1012,33 @@ async function triggerSync() {
 // ── Ingest ─────────────────────────────────────────────────────────────────
 async function ingestDoc() {
   const domain  = document.getElementById('ingest-domain').value;
-  const content = document.getElementById('ingest-content').value.trim();
-  const source  = document.getElementById('ingest-source').value.trim() || 'manual';
-  if (!content) return alert('No content to ingest');
+  const fileInput = document.getElementById('ingest-file');
+  const source  = document.getElementById('ingest-source').value.trim() || 'upload';
+  
+  if (!fileInput.files.length) return alert('No file selected');
+  
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('domain', domain);
+  formData.append('source', source);
+  formData.append('file', file);
 
   try {
-    await fetch('/ingest', {
+    const resp = await fetch('/ingest/file', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ domain, content, source }),
+      body: formData,
     });
-    document.getElementById('ingest-content').value = '';
+    
+    if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text);
+    }
+    
+    fileInput.value = '';
     document.getElementById('ingest-source').value  = '';
-    alert(`Ingested into ${domain} KB`);
+    alert(`File uploaded to ${domain} KB!`);
   } catch (e) {
-    alert('Ingest failed: ' + e);
+    alert('Upload failed: ' + e);
   }
 }
 

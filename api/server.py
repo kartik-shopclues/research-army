@@ -8,7 +8,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -130,6 +130,36 @@ async def ingest(req: IngestRequest, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_ingest)
     return {"status": "ingestion_queued", "domain": req.domain}
+
+
+@app.post("/ingest/file")
+async def ingest_file_api(
+    background_tasks: BackgroundTasks,
+    domain: str = Form(...),
+    source: Optional[str] = Form("upload"),
+    file: UploadFile = File(...),
+):
+    """Ingest a file (JSON, TXT) into a domain KB."""
+    if domain not in ["space", "defence", "quantum"]:
+        raise HTTPException(400, "domain must be space | defence | quantum")
+
+    content_bytes = await file.read()
+    
+    if file.filename.endswith(".json"):
+        try:
+            data = json.loads(content_bytes)
+            content = json.dumps(data, indent=2)
+        except Exception as e:
+            raise HTTPException(400, f"Invalid JSON: {e}")
+    else:
+        content = content_bytes.decode("utf-8", errors="replace")
+
+    async def _ingest():
+        n = await ingest_document(domain, content, source=file.filename or source)
+        console.print(f"[green]Ingested {n} chunks → {domain}[/green]")
+
+    background_tasks.add_task(_ingest)
+    return {"status": "ingestion_queued", "domain": domain, "filename": file.filename}
 
 
 @app.post("/sync")
