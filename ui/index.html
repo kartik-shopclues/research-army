@@ -504,10 +504,15 @@
     </div>
     
     <div class="kb-stat" style="margin-bottom:16px;">
-        <span>High-Quality Training Examples:</span>
+        <span>High-Quality Training Examples (Cache):</span>
         <span id="ft-examples" style="color:var(--commander);font-weight:700;">-</span>
     </div>
     
+    <div style="margin-bottom:16px;">
+        <div class="sidebar-label" style="font-size:10px; margin-bottom:8px;">Or Upload Custom Dataset (.jsonl)</div>
+        <input type="file" id="ft-dataset-file" accept=".jsonl" style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;">
+    </div>
+
     <div style="display:flex;gap:12px;">
         <button class="submit-btn" id="btn-train" onclick="startFinetune('start')">Begin Fine-Tuning Job</button>
         <button class="submit-btn" id="btn-merge" onclick="startFinetune('merge')" style="background:var(--quantum);display:none;">Merge Adapter into Base Model</button>
@@ -678,7 +683,8 @@
 </div>
 
 <script>
-const API = '';  // same-origin
+const API = (window.location.protocol === 'file:' || window.location.port === '5500') ? 'http://localhost:8000' : '';
+const WS_API = API ? API.replace('http', 'ws') : `ws://${location.host}`;
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -805,8 +811,7 @@ async function submitQuery() {
 async function streamResearch(query, mode) {
   showProgress('Connecting...');
 
-  if (ws) ws.close();
-  ws = new WebSocket(`ws://${location.host}/ws/research`);
+  ws = new WebSocket(`${WS_API}/ws/research`);
 
   const block = createResultBlock();
   let streamDiv = null;
@@ -869,7 +874,7 @@ async function runResearch(query, mode) {
       ['space','defence','quantum'].forEach(d => setAgent(d, 'ACTIVE'));
     }
 
-    const resp = await fetch('/research', {
+    const resp = await fetch(`${API}/research`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, session_id: sessionId, force_mode: mode }),
@@ -1000,7 +1005,7 @@ function updateAgentsFromProgress(text) {
 async function triggerSync() {
   document.getElementById('sync-status').textContent = 'Syncing...';
   try {
-    const resp = await fetch('/sync', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({force:true}) });
+    const resp = await fetch(`${API}/sync`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({force:true}) });
     const data = await resp.json();
     document.getElementById('sync-status').textContent =
       `Done: ${data.total_injected} chunks injected`;
@@ -1024,7 +1029,7 @@ async function ingestDoc() {
   formData.append('file', file);
 
   try {
-    const resp = await fetch('/ingest/file', {
+    const resp = await fetch(`${API}/ingest/file`, {
       method: 'POST',
       body: formData,
     });
@@ -1061,7 +1066,7 @@ function switchTab(tab, event) {
 
 async function loadFinetuneStats() {
     try {
-        let r = await fetch('/finetune/stats');
+        let r = await fetch(`${API}/finetune/stats`);
         let data = await r.json();
         let dom = document.getElementById('ft-domain').value;
         document.getElementById('ft-examples').textContent = data.stats[dom] || 0;
@@ -1081,11 +1086,20 @@ async function loadFinetuneStats() {
 
 async function startFinetune(action) {
     let dom = document.getElementById('ft-domain').value;
+    let formData = new FormData();
+    formData.append("domain", dom);
+    
+    if (action === 'start') {
+        let fileInput = document.getElementById('ft-dataset-file');
+        if (fileInput && fileInput.files.length > 0) {
+            formData.append("dataset", fileInput.files[0]);
+        }
+    }
+
     try {
-        let r = await fetch(`/finetune/${action}`, { 
+        let r = await fetch(`${API}/finetune/${action}`, { 
             method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({domain:dom}) 
+            body: formData 
         });
         if(!r.ok) { 
             let err = await r.json(); 
@@ -1100,7 +1114,7 @@ async function startFinetune(action) {
 
 function connectFinetuneLogs() {
     if(ft_ws) ft_ws.close();
-    ft_ws = new WebSocket(`ws://${location.host}/finetune/ws/logs`);
+    ft_ws = new WebSocket(`${WS_API}/finetune/ws/logs`);
     let logBox = document.getElementById('ft-logs');
     
     ft_ws.onmessage = (e) => {
