@@ -18,7 +18,7 @@ def print_banner():
         "[cyan]Space LLM:[/cyan]    mistral:7b\n"
         "[yellow]Defence LLM:[/yellow]  llama3.1:8b\n"
         "[magenta]Quantum LLM:[/magenta]  qwen3:8b\n"
-        "[green]Commander:[/green]   qwen3:30b\n"
+        "[green]Commander:[/green]   qwen3:8b\n"
         "[blue]Synthesis:[/blue]   gemma2:27b\n"
         "[white]Embedder:[/white]    nomic-embed-text\n\n"
         "[dim]UI → http://localhost:8000[/dim]",

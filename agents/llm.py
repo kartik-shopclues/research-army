@@ -163,7 +163,7 @@ def make_commander() -> OllamaLLM:
     return OllamaLLM(
         settings.commander_model,
         COMMANDER_SYSTEM_PROMPT,
-        timeout    = 120,
+        timeout    = 300,
         max_tokens = settings.max_tokens_commander,   # 256 — just routing JSON
     )
 
