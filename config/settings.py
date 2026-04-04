@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     ollama_num_ctx:    int = 4096   # cap context window — faster KV-cache + attention
 
     # Per-role token budgets (right-sized per job, not a blanket 2048)
-    max_tokens_commander:  int = 256   # only outputs routing JSON
+    max_tokens_commander:  int = 512   # thinking tokens (qwen3) + routing JSON
     max_tokens_specialist: int = 800   # focused domain response
     max_tokens_synthesis:  int = 1500  # cross-domain narrative
     max_tokens_critique:   int = 600   # fact-check bullet points

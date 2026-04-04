@@ -142,11 +142,21 @@ class OllamaLLM:
         response    = await self.generate(json_prompt, history, temperature=0.1)
 
         clean = response.strip()
+
+        # Strip qwen3/deepseek-style <think>...</think> blocks before parsing
+        import re
+        clean = re.sub(r'<think>.*?</think>', '', clean, flags=re.DOTALL).strip()
+
+        # Strip markdown fences
         if clean.startswith("```"):
             clean = clean.split("```")[1]
             if clean.startswith("json"):
                 clean = clean[4:]
         clean = clean.strip().rstrip("`")
+
+        if not clean:
+            console.print("[yellow]Commander returned empty response — using defaults[/yellow]")
+            return {}
 
         try:
             return json.loads(clean)
@@ -164,7 +174,7 @@ def make_commander() -> OllamaLLM:
         settings.commander_model,
         COMMANDER_SYSTEM_PROMPT,
         timeout    = 300,
-        max_tokens = settings.max_tokens_commander,   # 256 — just routing JSON
+        max_tokens = settings.max_tokens_commander,   # 512 — thinking tokens + routing JSON
     )
 
 
