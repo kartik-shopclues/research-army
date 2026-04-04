@@ -90,6 +90,7 @@ async def start_training(
     if dataset:
         dataset_path = f"data/finetune_{domain}_custom.jsonl"
         os.makedirs("data", exist_ok=True)
+        await dataset.seek(0)
         content = await dataset.read()
         with open(dataset_path, "wb") as f:
             f.write(content)
