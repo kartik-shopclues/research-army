@@ -25,8 +25,8 @@ def train_adapter(domain: str, dataset_path: str):
         from trl import SFTTrainer
         from transformers import TrainingArguments
         import torch
-    except ImportError:
-        console.print("[red]Unsloth/Transformers not found. Ensure fine-tuning dependencies are installed.[/red]")
+    except ImportError as e:
+        console.print(f"[red]Unsloth/Transformers/Datasets dependency missing or failed to load. Ensure they are installed via pip. Exact Error: {e}[/red]")
         sys.exit(1)
 
     max_seq_length = 2048
