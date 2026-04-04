@@ -30,3 +30,10 @@ numpy>=1.26.0
 pandas>=2.2.0
 python-multipart>=0.0.9
 jinja2>=3.1.4
+
+# Fine-Tuning
+torch>=2.1.0
+transformers>=4.40.0
+trl>=0.8.0
+peft>=0.10.0
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git

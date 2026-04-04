@@ -20,6 +20,7 @@ from rag.pipeline import init_collections, ingest_document, ingest_file
 from sync.bus import SyncBus, run_sync_scheduler
 from memory.store import MemoryStore
 from config.settings import settings
+from api.finetune import router as finetune_router
 
 console = Console()
 
@@ -68,6 +69,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(finetune_router)
 
 
 # ── Request / Response models ──────────────────────────────────────────────

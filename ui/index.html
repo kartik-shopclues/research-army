@@ -467,12 +467,23 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  /* Fine-tuning tab additions */
+  .tab { font-size:12px; font-weight: 700; color:var(--muted); cursor:pointer; font-family:'JetBrains Mono',monospace; padding-bottom:4px; border-bottom:2px solid transparent;}
+  .tab.active { color:var(--text); border-bottom-color:var(--commander);}
+  #finetune-view { display:none; padding:28px; width:100%; height:calc(100vh - 53px); overflow-y:auto; }
+  .finetune-panel { background:var(--bg1); border:1px solid var(--border); border-radius:8px; padding:20px; max-width:800px; margin:0 auto; }
+  .log-console { background:var(--bg0); border:1px solid var(--border); border-radius:5px; height:450px; overflow-y:auto; padding:10px; font-family:'JetBrains Mono', monospace; font-size:11px; white-space:pre-wrap; margin-top:20px; color:var(--text);}
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">RESEARCH<span>.ARMY</span></div>
+  <div class="tabs" style="display:flex;gap:24px;">
+      <div class="tab active" onclick="switchTab('research', event)">Research Agent</div>
+      <div class="tab" onclick="switchTab('finetune', event)">Fine-Tuning</div>
+  </div>
   <div class="header-status">
     <span><span class="status-dot"></span>OLLAMA ONLINE</span>
     <span><span class="status-dot" style="background:var(--space)"></span>WEAVIATE ONLINE</span>
@@ -480,7 +491,33 @@
   </div>
 </header>
 
-<div class="main">
+<div class="finetune-view" id="finetune-view">
+  <div class="finetune-panel">
+    <h2 style="font-size:18px;margin-bottom:16px;">Domain Fine-Tuning</h2>
+    <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;">
+        <select id="ft-domain" class="ingest-domain-select" style="max-width:200px;" onchange="loadFinetuneStats()">
+            <option value="space">Space</option>
+            <option value="defence">Defence</option>
+            <option value="quantum">Quantum</option>
+        </select>
+        <button class="ingest-btn" style="max-width:120px;" onclick="loadFinetuneStats()">⟳ Refresh Stats</button>
+    </div>
+    
+    <div class="kb-stat" style="margin-bottom:16px;">
+        <span>High-Quality Training Examples:</span>
+        <span id="ft-examples" style="color:var(--commander);font-weight:700;">-</span>
+    </div>
+    
+    <div style="display:flex;gap:12px;">
+        <button class="submit-btn" id="btn-train" onclick="startFinetune('start')">Begin Fine-Tuning Job</button>
+        <button class="submit-btn" id="btn-merge" onclick="startFinetune('merge')" style="background:var(--quantum);display:none;">Merge Adapter into Base Model</button>
+    </div>
+    
+    <div class="log-console" id="ft-logs"></div>
+  </div>
+</div>
+
+<div class="main" id="main-view">
 
   <!-- LEFT SIDEBAR -->
   <div class="sidebar">
@@ -991,6 +1028,81 @@ async function ingestDoc() {
   } catch (e) {
     alert('Ingest failed: ' + e);
   }
+}
+
+// ── Fine Tuning Logic ───────────────────────────────────────────────────────
+let ft_ws = null;
+function switchTab(tab, event) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    if(tab === 'research') {
+        document.getElementById('main-view').style.display = 'grid';
+        document.getElementById('finetune-view').style.display = 'none';
+        if(ft_ws) ft_ws.close();
+    } else {
+        document.getElementById('main-view').style.display = 'none';
+        document.getElementById('finetune-view').style.display = 'block';
+        loadFinetuneStats();
+        connectFinetuneLogs();
+    }
+}
+
+async function loadFinetuneStats() {
+    try {
+        let r = await fetch('/finetune/stats');
+        let data = await r.json();
+        let dom = document.getElementById('ft-domain').value;
+        document.getElementById('ft-examples').textContent = data.stats[dom] || 0;
+        
+        let adapterExists = data.adapters[dom];
+        document.getElementById('btn-merge').style.display = adapterExists ? 'inline-block' : 'none';
+        
+        if (data.active_job) {
+             document.getElementById('btn-train').disabled = true;
+             document.getElementById('btn-merge').disabled = true;
+        } else {
+             document.getElementById('btn-train').disabled = false;
+             document.getElementById('btn-merge').disabled = false;
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function startFinetune(action) {
+    let dom = document.getElementById('ft-domain').value;
+    try {
+        let r = await fetch(`/finetune/${action}`, { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({domain:dom}) 
+        });
+        if(!r.ok) { 
+            let err = await r.json(); 
+            alert(err.detail || err); 
+            return; 
+        }
+        document.getElementById('btn-train').disabled = true;
+        document.getElementById('btn-merge').disabled = true;
+        loadFinetuneStats(); // refresh status
+    } catch (e) { alert(e); }
+}
+
+function connectFinetuneLogs() {
+    if(ft_ws) ft_ws.close();
+    ft_ws = new WebSocket(`ws://${location.host}/finetune/ws/logs`);
+    let logBox = document.getElementById('ft-logs');
+    
+    ft_ws.onmessage = (e) => {
+        // Simple heuristic to clear screen on new job start
+        if(e.data.includes('--- Starting') && !logBox.innerHTML.includes(e.data)) {
+            logBox.innerHTML += escHtml(e.data);
+        } else {
+            logBox.innerHTML += escHtml(e.data);
+        }
+        logBox.scrollTop = logBox.scrollHeight;
+        if (e.data.includes('Finished with exit code')) { loadFinetuneStats(); }
+    };
+    
+    ft_ws.onclose = () => { setTimeout(connectFinetuneLogs, 3000); };
 }
 </script>
 </body>
